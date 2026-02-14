@@ -41,7 +41,6 @@ async def scumbag_evaluate(test_in: ScumbagTestIn):
     """提交渣男评测"""
     try:
         result = await evaluate_scumbag(test_in)
-        print("result ==>", result)
         if result:
             return {"code": 200, "message": "评测成功", "data": result}
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="评测失败")

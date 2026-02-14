@@ -12,22 +12,11 @@ from config.setting import settings
 from langchain_community.chat_models.tongyi import ChatTongyi
 from langchain_core.messages import HumanMessage, SystemMessage
 from schemas.scumbag_schema import ScumbagTestIn, ScumbagTestOut
+from data.scumbag_questions import SCUMBAG_QUESTIONS
 
 os.environ["DASHSCOPE_API_KEY"] = settings.OPENAI_API_KEY
 
 chat_model = ChatTongyi()
-
-# 预设题目库，供前端展示和 LLM 参考
-SCUMBAG_QUESTIONS = [
-    {"id": "q1", "text": "和对象吵架后，你通常会？", "options": {"A": "主动哄她/他", "B": "冷静几天再说", "C": "等对方来道歉", "D": "直接冷战/拉黑"}},
-    {"id": "q2", "text": "和异性朋友单独约饭/看电影，你会？", "options": {"A": "会提前跟对象报备", "B": "偶尔会提一嘴", "C": "觉得没必要说", "D": "刻意隐瞒"}},
-    {"id": "q3", "text": "前任找你复合，你会？", "options": {"A": "明确拒绝并保持距离", "B": "礼貌拒绝", "C": "看心情决定", "D": "暧昧不清/藕断丝连"}},
-    {"id": "q4", "text": "对象生日/纪念日，你会？", "options": {"A": "提前准备惊喜", "B": "记得并会送礼物", "C": "经常忘记", "D": "觉得仪式感很麻烦"}},
-    {"id": "q5", "text": "吵架时会说气话/人身攻击吗？", "options": {"A": "从不，就事论事", "B": "偶尔忍不住", "C": "经常口不择言", "D": "觉得对方活该"}},
-    {"id": "q6", "text": "对「已读不回」怎么看？", "options": {"A": "尽量及时回复", "B": "忙完会回", "C": "看心情回", "D": "经常已读不回觉得无所谓"}},
-    {"id": "q7", "text": "和对象规划未来时，你会？", "options": {"A": "认真讨论并行动", "B": "口头答应", "C": "敷衍画饼", "D": "避而不谈"}},
-    {"id": "q8", "text": "分手后对待前任的方式？", "options": {"A": "尊重彼此，不再纠缠", "B": "可以当普通朋友", "C": "藕断丝连/备胎", "D": "到处说坏话/报复"}},
-]
 
 system_prompt = """你是一位专业的恋爱关系分析师，擅长从行为模式判断一个人是否具备「渣」的特质。请根据用户的作答，给出客观、幽默但不刻薄的评测。
 
