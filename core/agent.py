@@ -57,7 +57,7 @@ structured_llm = chat_model.with_structured_output(NamesResultSchema)
 
 def _parse_json_from_content(content: str) -> NamesResultSchema | None:
     """从模型返回的文本中提取 JSON 并解析为 NamesResultSchema。"""
-    if not content or not content.strip(): # 空文本
+    if not content or not content.strip():  # 空文本
         return None
     text = content.strip()
     # 先尝试 ```json ... ``` 或 ``` ... ```
@@ -77,8 +77,27 @@ def _parse_json_from_content(content: str) -> NamesResultSchema | None:
         return None
 
 
+def _length_to_explicit(length: str, surname: str) -> str:
+    """将「两字」「三字」转为无歧义说明（指整个姓名总字数）"""
+    if length == "不限":
+        return "字数不限"
+    surname_len = len(surname)
+    if length == "两字":
+        total = 2
+    elif length == "三字":
+        total = 3
+    else:
+        return f"字数要求为：{length}"
+    given_len = total - surname_len
+    return f"整个姓名（姓+名）共{total}个字，即名用{given_len}个字"
+
 async def generate_names(name_info: NameIn) -> NamesResultSchema | None:
-    prompt = f"用户的姓氏是：{name_info.surname}，用户的性别为：{name_info.gender}，算上姓用户的字数要求为：{name_info.length}，用户的其他要求为：{name_info.other}，这些名字不要：{'、'.join(name_info.exclude)}，请为用户生成5个符合要求的姓名。"
+    length_desc = _length_to_explicit(name_info.length, name_info.surname)
+    prompt = f"用户的姓是：{name_info.surname}，用户的性别为：{name_info.gender}，{length_desc}"
+    if name_info.other:
+        prompt += f"，用户的其他要求为：{name_info.other}"
+    if len(name_info.exclude) > 0:
+        prompt += f"，用户排除的姓名有：{','.join(name_info.exclude)}"
     messages = [
         SystemMessage(content=system_prompt),
         HumanMessage(content=prompt),
@@ -91,7 +110,7 @@ async def generate_names(name_info: NameIn) -> NamesResultSchema | None:
     # 若结构化输出为 None（部分模型/环境下 function calling 未正确返回），则用原始模型并解析 JSON
     if result is None:
         json_instruction = (
-            f'请仅输出一个 JSON 对象，不要其他说明，姓名是姓和名的组合。格式为：{"names": [{"name": "姓名", "reference": "出处", "moral": "寓意"}, ...]}，共{5}个姓名。'
+            f'请仅输出一个 JSON 对象，不要其他说明，姓名是姓和名的组合。格式为：{{"names": [{{"name": "姓名", "reference": "出处", "moral": "寓意"}}, ...]}}，共{5}个姓名。'
         )
         fallback_messages = [
             SystemMessage(content=system_prompt),
