@@ -18,15 +18,30 @@ os.environ["DASHSCOPE_API_KEY"] = settings.OPENAI_API_KEY
 
 chat_model = ChatTongyi()
 
-system_prompt = """你是一位专业的恋爱关系分析师，擅长从行为模式判断一个人是否具备「渣」的特质。请根据用户的作答，给出客观、幽默但不刻薄的评测。
+system_prompt = """你是一位专业的恋爱关系分析师。渣男指数 0-100，分数越高表示问题行为越多、越渣。
 
-评测标准：
-- 渣男指数 0-100：分数越高，表示在恋爱中的问题行为越多、越典型
-- 等级标签：从「绝世好男人」「暖男」「普通直男」「海王」「渣男」到「绝世渣男」等，根据分数合理划分
-- 分析要结合具体题目和选项，指出哪些行为值得肯定、哪些需要改进
-- 建议要具体、可操作，语气友善，目的是帮助对方成为更好的伴侣
+等级与分数对应（必须严格一致）：
+- 0-20分：绝世好男人/暖男 → 分析应为正面肯定
+- 21-40分：普通直男 → 有小问题可改进
+- 41-60分：海王倾向 → 需警惕
+- 61-80分：渣男 → 红 flag 较多
+- 81-100分：绝世渣男 → 严重问题
 
-请保持轻松幽默的语气，避免人身攻击。"""
+你的 level、analysis、suggestions 必须与给定分数完全一致，不得矛盾。请保持客观、幽默但不刻薄。"""
+
+
+# 选项 A/B/C/D 对应的渣男指数分值（越高越渣）
+_OPTION_SCORE = {"A": 0, "B": 25, "C": 60, "D": 100}
+
+
+def _compute_score(answers: list) -> int:
+    """根据作答规则计算渣男指数 0-100，分数越高越渣"""
+    if not answers:
+        return 0
+    total = 0
+    for a in answers:
+        total += _OPTION_SCORE.get(a.answer.upper(), 50)  # 未知选项取中间值
+    return round(total / len(answers))
 
 
 def _build_answers_text(answers: list) -> str:
@@ -66,14 +81,18 @@ structured_llm = chat_model.with_structured_output(ScumbagTestOut)
 
 
 async def evaluate_scumbag(test_in: ScumbagTestIn) -> ScumbagTestOut | None:
-    """渣男评测"""
+    """渣男评测：分数规则计算，分析由 LLM 生成且必须与分数一致"""
+    # 1. 规则计算分数（保证与选项一一对应，高分=越渣）
+    score = _compute_score(test_in.answers)
     answers_text = _build_answers_text(test_in.answers)
-    user_prompt = f"""请根据以下作答，评测该用户的「渣男指数」并给出分析建议。
+
+    user_prompt = f"""渣男指数已计算为 {score} 分。请根据以下作答和该分数，生成与之完全一致的 level、analysis、suggestions。
 
 【用户作答】
 {answers_text}
 
-请严格按照 ScumbagTestOut 格式返回 JSON：score(0-100)、level、analysis、suggestions(字符串列表)。"""
+【要求】level 与 analysis 必须符合 {score} 分的档次（0-20好/21-40普通/41-60海王/61-80渣/81-100绝世渣），不得矛盾。
+请严格按照 JSON 格式返回：{{"score": {score}, "level": "等级", "analysis": "分析", "suggestions": ["建议1", "建议2"]}}"""
 
     messages = [
         SystemMessage(content=system_prompt),
@@ -88,7 +107,7 @@ async def evaluate_scumbag(test_in: ScumbagTestIn) -> ScumbagTestOut | None:
 
     if result is None:
         json_instruction = (
-            '请仅输出一个 JSON 对象，格式为：{{"score": 0-100, "level": "等级", "analysis": "分析", "suggestions": ["建议1", "建议2"]}}'
+            f'请仅输出一个 JSON 对象，格式为：{{"score": {score}, "level": "等级", "analysis": "分析", "suggestions": ["建议1", "建议2"]}}'
         )
         fallback_messages = [
             SystemMessage(content=system_prompt),
@@ -101,6 +120,14 @@ async def evaluate_scumbag(test_in: ScumbagTestIn) -> ScumbagTestOut | None:
         except Exception as e:
             print("scumbag fallback error ==>", e)
 
+    # 2. 强制使用规则计算的分数，避免 LLM 返回矛盾值
+    if result:
+        result = ScumbagTestOut(
+            score=score,
+            level=result.level,
+            analysis=result.analysis,
+            suggestions=result.suggestions,
+        )
     return result
 
 
